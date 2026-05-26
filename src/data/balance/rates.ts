@@ -6,8 +6,8 @@
 
 // #region Encounterable properties
 
-/** `64/65536 -> 1/1024` */
-export const BASE_SHINY_CHANCE = 64;
+/** `256/65536 -> 1/256` -- nlz: boosted from default 1/1024 */
+export const BASE_SHINY_CHANCE = 256;
 
 /** `1 / 256` */
 export const BASE_HIDDEN_ABILITY_RATE = 256;
@@ -39,7 +39,7 @@ export const HATCH_WAVES_MANAPHY_EGG = 50;
 
 // Rates for specific random properties in 1/x
 export const GACHA_DEFAULT_SHINY_RATE = 128;
-export const GACHA_SHINY_UP_SHINY_RATE = 64;
+export const GACHA_SHINY_UP_SHINY_RATE = 25; // nlz: 1/25 (was 1/64)
 export const SAME_SPECIES_EGG_SHINY_RATE = 12;
 export const SAME_SPECIES_EGG_HA_RATE = 8;
 export const MANAPHY_EGG_MANAPHY_RATE = 8;
@@ -55,8 +55,8 @@ export const BOOSTED_RARE_EGGMOVE_RATES: readonly number[] = [16, 12, 6, 3];
 // #region Variant properties
 
 // The chance x/10 of a shiny being a variant, then of being specifically an epic variant
-export const SHINY_VARIANT_CHANCE = 4;
-export const SHINY_EPIC_CHANCE = 1;
+export const SHINY_VARIANT_CHANCE = 5; // nlz: yellow 50% (was 60%)
+export const SHINY_EPIC_CHANCE = 2; // nlz: red 20% (was 10%)
 
 // The catch rate bonus for shiny mons, introduced in Z-A. Can be boosted in events.
 export const SHINY_CATCH_RATE_MULTIPLIER = 2;
