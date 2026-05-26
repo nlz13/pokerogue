@@ -490,7 +490,7 @@ export class Egg {
 
     const rand = randSeedInt(totalWeight);
     for (let s = 0; s < speciesWeights.length; s++) {
-      if rand < speciesWeights[s]) {
+      if (rand < speciesWeights[s]) {
         species = speciesPool[s];
         break;
       }
