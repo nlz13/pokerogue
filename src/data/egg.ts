@@ -187,12 +187,13 @@ export class Egg {
         this._tier = this.getEggTier();
         this._hatchWaves = eggOptions.hatchWaves ?? this.getEggTierDefaultHatchWaves();
       }
-      // If species has no variant, set variantTier to common. This needs to
-      // be done because species with no variants get filtered at rollSpecies but if the
-      // species is set via options or the legendary gacha pokemon gets choosen the check never happens
-      if (this._species && !getPokemonSpecies(this._species).hasVariants()) {
-        this._variantTier = VariantTier.STANDARD;
-      }
+      // nlz fix-epic-variant-filter: disabled hasVariants() reset — depends on async variantData;
+      // if variantData is empty when egg loads, ALL species fail and saved EPIC/RARE variants
+      // get reset to STANDARD. The saved variantTier from the gacha pull is authoritative.
+      // if (this._species && !getPokemonSpecies(this._species).hasVariants()) {
+      //   this._variantTier = VariantTier.STANDARD;
+      // }
+
       // Needs this._tier so it needs to be generated afer the tier override if bought from same species
       this._eggMoveIndex = eggOptions?.eggMoveIndex ?? this.rollEggMoveIndex();
       if (eggOptions?.pulled) {
@@ -456,10 +457,11 @@ export class Egg {
       }
     }
 
-    // If egg variant is set to RARE or EPIC, filter species pool to only include ones with variants.
-    if (this.variantTier && (this.variantTier === VariantTier.RARE || this.variantTier === VariantTier.EPIC)) {
-      speciesPool = speciesPool.filter(s => getPokemonSpecies(s).hasVariants());
-    }
+    // nlz fix-epic-variant-filter: disabled hasVariants() pool filter — depends on async variantData;
+    // if variantData is empty, pool becomes empty -> randSeedInt(0) -> undefined species -> legacy path -> variant lost.
+    // if (this.variantTier && (this.variantTier === VariantTier.RARE || this.variantTier === VariantTier.EPIC)) {
+    //   speciesPool = speciesPool.filter(s => getPokemonSpecies(s).hasVariants());
+    // }
 
     /**
      * Pokemon that are cheaper in their tier get a weight boost.
@@ -488,7 +490,7 @@ export class Egg {
 
     const rand = randSeedInt(totalWeight);
     for (let s = 0; s < speciesWeights.length; s++) {
-      if (rand < speciesWeights[s]) {
+      if rand < speciesWeights[s]) {
         species = speciesPool[s];
         break;
       }
