@@ -4,6 +4,7 @@ import "#app/i18n"; // Initializes i18n on import
 
 import { InvertPostFX } from "#app/pipelines/invert";
 import { isBeta, isDev } from "#constants/app-constants";
+import { globalScene } from "#app/global-scene";
 import { version } from "#package.json";
 import Phaser from "phaser";
 import BBCodeTextPlugin from "phaser3-rex-plugins/plugins/bbcodetext-plugin";
@@ -70,6 +71,19 @@ async function startGame(): Promise<void> {
     version,
   });
   game.sound.pauseOnBlur = false;
+
+  // nlz: pause BGM when the app is backgrounded on Capacitor native platforms (iOS/Android).
+  // Desktop/web behaviour is unchanged.
+  const cap = (window as any).Capacitor;
+  if (cap?.isNativePlatform?.()) {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        globalScene?.pauseBgm();
+      } else {
+        globalScene?.resumeBgm();
+      }
+    });
+  }
 }
 
 try {
