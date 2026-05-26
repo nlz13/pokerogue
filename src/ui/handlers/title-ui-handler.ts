@@ -3,7 +3,7 @@ import { loggedInUser } from "#app/account";
 import { FAKE_TITLE_LOGO_CHANCE } from "#app/constants";
 import { timedEventManager } from "#app/global-event-manager";
 import { globalScene } from "#app/global-scene";
-import { isBeta, isDev } from "#constants/app-constants";
+import { isBeta, isDev, isApp } from "#constants/app-constants";
 import { getSplashMessages } from "#data/splash-messages";
 import { PlayerGender } from "#enums/player-gender";
 import type { SpeciesId } from "#enums/species-id";
@@ -107,6 +107,8 @@ export class TitleUiHandler extends OptionSelectUiHandler {
     this.appVersionText = addTextObject(logoX - 60, logoHeight + 4, "", TextStyle.MONEY, { fontSize: "54px" }) // formatting
       .setOrigin();
 
+    // nlz update-title-labels: hide the online-only player count label for offline builds
+    this.playerCountLabel.setText(``);
     this.titleContainer.add([
       logo,
       this.usernameLabel,
@@ -172,6 +174,8 @@ export class TitleUiHandler extends OptionSelectUiHandler {
     const windowHeight = this.getWindowHeight();
 
     this.updateUsername();
+    // nlz update-title-labels: blank the username label for offline builds
+    this.usernameLabel.setText(``);
 
     // Moving username and player count to top of the menu
     // and sorting it, to display the shorter one on top
@@ -195,7 +199,9 @@ export class TitleUiHandler extends OptionSelectUiHandler {
     );
 
     const betaText = isBeta || isDev ? " (Beta)" : "";
-    this.appVersionText.setText("v" + version + betaText);
+    // nlz offline-banner: append client label when running as Capacitor app.
+    const appText = isApp ? " - Unofficial Offline Client" : "";
+    this.appVersionText.setText("v" + version + betaText + appText);
 
     const ui = this.getUi();
 
