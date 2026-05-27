@@ -112,7 +112,53 @@ export class TitlePhase extends Phase {
           options.push({
             label: i18next.t("menu:dailyRun"),
             handler: () => {
-              this.initDailyRun();
+              // fix-daily-seed: fetch seed from GitHub Pages before showing save slot picker,
+              // so we stay on the title screen and can cleanly cancel on failure.
+              const todayUtc = new Date().toISOString().slice(0, 10);
+              const cachedDate = localStorage.getItem("daily_seed_date");
+              const cachedSeed = localStorage.getItem("daily_seed");
+              if (cachedDate === todayUtc && cachedSeed) {
+                this.initDailyRun();
+              } else {
+                globalScene.ui.revertMode();
+                globalScene.ui.setMode(UiMode.MESSAGE);
+                globalScene.ui.showText("Fetching daily seed...", null, null, null, true);
+                fetch("https://pokerogue-offline.github.io/pokerogue-offline/daily-seed.txt")
+                  .then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.text();
+                  })
+                  .then(fetchedSeed => {
+                    const seed = fetchedSeed.trim();
+                    localStorage.setItem("daily_seed_date", todayUtc);
+                    localStorage.setItem("daily_seed", seed);
+                    globalScene.ui.clearText();
+                    this.initDailyRun();
+                  })
+                  .catch(_err => {
+                    globalScene.ui.showText("Could not reach the server. Play offline daily instead?", null, () => {
+                      globalScene.ui.setOverlayMode(
+                        UiMode.CONFIRM,
+                        () => {
+                          // Yes: proceed with offline seed
+                          globalScene.ui.revertMode();
+                          globalScene.ui.clearText();
+                          this.initDailyRun();
+                        },
+                        () => {
+                          // No: return to title screen cleanly
+                          globalScene.ui.revertMode();
+                          globalScene.ui.clearText();
+                          globalScene.phaseManager.toTitleScreen();
+                          super.end();
+                          return true;
+                        },
+                        false,
+                        -98,
+                      );
+                    });
+                  });
+              }
               return true;
             },
           });
@@ -337,8 +383,10 @@ export class TitlePhase extends Phase {
             console.error("Failed to load daily run:\n", err);
           });
       } else {
-        // Grab first 10 chars of ISO date format (YYYY-MM-DD) and convert to base64
-        let seed: string = btoa(new Date().toISOString().slice(0, 10));
+        // fix-daily-seed: read the seed cached by the Daily Run option handler.
+        // Falls back to date-based seed if cache is somehow missing.
+        const fallbackSeed: string = btoa(new Date().toISOString().slice(0, 10));
+        let seed: string = localStorage.getItem("daily_seed") ?? fallbackSeed;
         if (activeOverrides.DAILY_RUN_SEED_OVERRIDE != null) {
           seed =
             typeof activeOverrides.DAILY_RUN_SEED_OVERRIDE === "string"
