@@ -29,30 +29,19 @@ export class CommandPhase extends FieldPhase {
   public readonly phaseName = "CommandPhase";
   protected fieldIndex: number;
 
-  /**
-   * Whether the command phase is handling a switch command
-   */
   private isSwitch = false;
 
   constructor(fieldIndex: number) {
     super();
-
     this.fieldIndex = fieldIndex;
   }
 
-  /**
-   * Resets the cursor to the position of {@linkcode Command.FIGHT} if any of the following are true
-   * - The setting to remember the last action is not enabled
-   * - This is the first turn of a mystery encounter, trainer battle, or the END biome
-   * - The cursor is currently on the POKEMON command
-   */
   private resetCursorIfNeeded(): void {
     const commandUiHandler = globalScene.ui.handlers[UiMode.COMMAND];
     const { arena, commandCursorMemory, currentBattle } = globalScene;
     const { battleType, turn } = currentBattle;
     const { biomeId } = arena;
 
-    // If one of these conditions is true, we always reset the cursor to Command.FIGHT
     const cursorResetEvent =
       battleType === BattleType.MYSTERY_ENCOUNTER || battleType === BattleType.TRAINER || biomeId === BiomeId.END;
 
@@ -67,14 +56,7 @@ export class CommandPhase extends FieldPhase {
     }
   }
 
-  /**
-   * Submethod of {@linkcode start} that validates field index logic for nonzero field indices.
-   * Must only be called if the field index is nonzero.
-   */
   private handleFieldIndexLogic(): void {
-    // If we somehow are attempting to check the right pokemon but there's only one pokemon out
-    // Switch back to the center pokemon. This can happen rarely in double battles with mid turn switching
-    // TODO: Prevent this from happening in the first place
     if (globalScene.getPlayerField().filter(p => p.isActive()).length === 1) {
       this.fieldIndex = FieldPosition.CENTER;
       return;
@@ -89,12 +71,7 @@ export class CommandPhase extends FieldPhase {
     }
   }
 
-  /**
-   * Submethod of {@linkcode start} that sets the turn command to skip if this pokemon
-   * is commanding its ally via {@linkcode AbilityId.COMMANDER}.
-   */
   private checkCommander(): void {
-    // If the Pokemon has applied Commander's effects to its ally, skip this command
     if (
       globalScene.currentBattle?.double
       && this.getPokemon().getAlly()?.getTag(BattlerTagType.COMMANDED)?.getSourcePokemon() === this.getPokemon()
@@ -107,10 +84,6 @@ export class CommandPhase extends FieldPhase {
     }
   }
 
-  /**
-   * Clear out all unusable moves in front of the currently acting pokemon's move queue.
-   */
-  // TODO: Refactor move queue handling to ensure that this method is not necessary.
   private clearUnusableMoves(): void {
     const playerPokemon = this.getPokemon();
     const moveQueue = playerPokemon.getMoveQueue();
@@ -137,10 +110,6 @@ export class CommandPhase extends FieldPhase {
     }
   }
 
-  /**
-   * Attempt to execute the first usable move in this Pokemon's move queue
-   * @returns Whether a queued move was successfully set to be executed.
-   */
   private tryExecuteQueuedMove(): boolean {
     this.clearUnusableMoves();
     const playerPokemon = globalScene.getPlayerField()[this.fieldIndex];
@@ -197,10 +166,6 @@ export class CommandPhase extends FieldPhase {
     }
   }
 
-  /**
-   * Submethod of {@linkcode handleFightCommand} responsible for queuing the provided error message when the move cannot be used
-   * @param msg - The reason why the move cannot be used
-   */
   private queueFightErrorMessage(msg: string): void {
     const ui = globalScene.ui;
     ui.setMode(UiMode.MESSAGE);
@@ -216,28 +181,10 @@ export class CommandPhase extends FieldPhase {
     );
   }
 
-  /**
-   * Helper method for {@linkcode handleFightCommand} that returns the moveID for the phase
-   * based on the move passed in or the cursor.
-   *
-   * Does not check if the move is usable or not, that should be handled by the caller.
-   */
   private computeMoveId(playerPokemon: PlayerPokemon, cursor: number, move: TurnMove | undefined): MoveId {
     return move?.move ?? (cursor > -1 ? playerPokemon.getMoveset()[cursor]?.moveId : MoveId.NONE);
   }
 
-  /**
-   * Process the logic for executing a fight-related command
-   *
-   * @remarks
-   * - Validates whether the move can be used, using struggle if not
-   * - Constructs the turn command and inserts it into the battle's turn commands
-   *
-   * @param command - The command to handle (FIGHT or TERA)
-   * @param cursor - The index that the cursor is placed on, or -1 if no move can be selected.
-   * @param ignorePP - Whether to ignore PP when checking if the move can be used.
-   * @param move - The move to force the command to use, if any.
-   */
   private handleFightCommand(
     command: Command.FIGHT | Command.TERA,
     cursor: number,
@@ -248,7 +195,6 @@ export class CommandPhase extends FieldPhase {
     const ignorePP = isIgnorePP(useMode);
     const [canUse, reason] = cursor === -1 ? [true, ""] : playerPokemon.trySelectMove(cursor, ignorePP);
 
-    // Ternary here ensures we don't compute struggle conditions unless necessary
     const useStruggle = canUse
       ? false
       : cursor > -1 && !playerPokemon.getMoveset().some(m => m.isUsable(playerPokemon, ignorePP, true)[0]);
@@ -315,11 +261,6 @@ export class CommandPhase extends FieldPhase {
     return true;
   }
 
-  /**
-   * Set the mode in preparation to show the text, and then show the text.
-   * Only works for parameterless i18next keys.
-   * @param key - The i18next key for the text to show
-   */
   private queueShowText(key: string): void {
     globalScene.ui.setMode(UiMode.COMMAND, this.fieldIndex);
     globalScene.ui.setMode(UiMode.MESSAGE);
@@ -336,19 +277,6 @@ export class CommandPhase extends FieldPhase {
     );
   }
 
-  /**
-   * Helper method for {@linkcode handleBallCommand} that checks if a pokeball can be thrown
-   * and displays the appropriate error message.
-   *
-   * @remarks
-   * The pokeball may not be thrown if any of the following are true:
-   * - It is a trainer battle
-   * - The player is in the {@linkcode BiomeId.END | End} biome and
-   *   - it is not classic mode; or
-   *   - the player has not caught the target before and the player is still missing more than one starter
-   * - The player is in a mystery encounter that disallows catching the pokemon
-   * @returns Whether a pokeball can be thrown
-   */
   private checkCanUseBall(): boolean {
     const { arena, currentBattle, gameData, gameMode } = globalScene;
     const { battleType } = currentBattle;
@@ -372,7 +300,6 @@ export class CommandPhase extends FieldPhase {
         || (isFullFreshStart && !isClassicFinalBoss)
         || (isEndless && !isEndlessMinorBoss)
       ) {
-        // Uncatchable paradox mons in classic and endless
         this.queueShowText("battle:noPokeballForce");
       } else if (
         (isClassic && isClassicFinalBoss && missingMultipleStarters)
@@ -380,7 +307,6 @@ export class CommandPhase extends FieldPhase {
         || (isEndless && isEndlessMinorBoss)
         || (isDaily && !isCatchableDailyBoss)
       ) {
-        // Uncatchable final boss in classic, endless and daily
         this.queueShowText("battle:noPokeballForceFinalBoss");
       } else {
         return true;
@@ -396,12 +322,6 @@ export class CommandPhase extends FieldPhase {
     return false;
   }
 
-  /**
-   * Helper method for {@linkcode handleCommand} that handles the logic when the selected command is to use a pokeball.
-   *
-   * @param cursor - The index of the pokeball to use
-   * @returns Whether the command was successfully initiated
-   */
   private handleBallCommand(cursor: number): boolean {
     const targets = globalScene
       .getEnemyField()
@@ -412,14 +332,38 @@ export class CommandPhase extends FieldPhase {
       return false;
     }
 
-    if (targets.length > 1) {
-      this.queueShowText("battle:noPokeballMulti");
-      return false;
-    }
-
     const numBallTypes = 5;
     if (cursor < numBallTypes) {
-      // nlz v2: boss HP threshold restriction removed — all bosses catchable at any HP with any ball
+      // nlz v2: boss HP threshold restriction removed — all bosses catchable at any HP
+      // nlz v2: double battles show a target picker so the player can choose which to catch
+
+      if (targets.length > 1) {
+        const enemyField = globalScene.getEnemyField().filter(p => p.isActive(true));
+        const options = enemyField.map(p => ({
+          label: p.name,
+          handler: () => {
+            globalScene.currentBattle.turnCommands[this.fieldIndex] = {
+              command: Command.BALL,
+              cursor,
+            };
+            globalScene.currentBattle.turnCommands[this.fieldIndex]!.targets = [p.getBattlerIndex()];
+            if (this.fieldIndex) {
+              globalScene.currentBattle.turnCommands[this.fieldIndex - 1]!.skip = true;
+            }
+            this.end();
+            return true;
+          },
+        }));
+        options.push({
+          label: i18next.t("menu:cancel"),
+          handler: () => {
+            globalScene.ui.setMode(UiMode.COMMAND, this.fieldIndex);
+            return true;
+          },
+        });
+        globalScene.ui.setOverlayMode(UiMode.OPTION_SELECT, { options, yOffset: 47 });
+        return false; // end() will be called from the selection handler above
+      }
 
       globalScene.currentBattle.turnCommands[this.fieldIndex] = {
         command: Command.BALL,
@@ -435,14 +379,6 @@ export class CommandPhase extends FieldPhase {
     return false;
   }
 
-  /**
-   * Submethod of {@linkcode tryLeaveField} to handle the logic for effects that prevent the pokemon from leaving the field
-   * due to trapping abilities or effects.
-   *
-   * This method queues the proper messages in the case of trapping abilities or effects.
-   *
-   * @returns Whether the pokemon is currently trapped
-   */
   private handleTrap(): boolean {
     const playerPokemon = this.getPokemon();
     const trappedAbMessages: string[] = [];
@@ -485,13 +421,6 @@ export class CommandPhase extends FieldPhase {
     return true;
   }
 
-  /**
-   * Common helper method that attempts to have the pokemon leave the field.
-   * Checks for trapping abilities and effects.
-   *
-   * @param cursor - The index of the option that the cursor is on
-   * @returns Whether the pokemon is able to leave the field, indicating the command phase should end
-   */
   private tryLeaveField(cursor?: number, isBatonSwitch = false): boolean {
     const currentBattle = globalScene.currentBattle;
 
@@ -514,19 +443,6 @@ export class CommandPhase extends FieldPhase {
     return false;
   }
 
-  /**
-   * Helper method for {@linkcode handleCommand} that handles the logic when the selected command is RUN.
-   *
-   * @remarks
-   * Checks if the player is allowed to flee, and if not, queues the appropriate message.
-   *
-   * The player cannot flee if:
-   * - The player is in the {@linkcode BiomeId.END | End} biome
-   * - The player is in a trainer battle
-   * - The player is in a mystery encounter that disallows fleeing
-   * - The player's pokemon is trapped by an ability or effect
-   * @returns Whether the pokemon is able to leave the field, indicating the command phase should end
-   */
   private handleRunCommand(): boolean {
     const { currentBattle, arena } = globalScene;
     const mysteryEncounterFleeAllowed = currentBattle.mysteryEncounter?.fleeAllowed ?? true;
@@ -547,9 +463,6 @@ export class CommandPhase extends FieldPhase {
     return success;
   }
 
-  /**
-   * Show a message indicating that the pokemon cannot escape, and then return to the command phase.
-   */
   private showNoEscapeText(tag: any, isSwitch: boolean): void {
     globalScene.ui.showText(
       i18next.t("battle:noEscapePokemon", {
@@ -572,16 +485,6 @@ export class CommandPhase extends FieldPhase {
     );
   }
 
-  // Overloads for handleCommand to provide a more specific signature for the different options
-  /**
-   * Process the command phase logic based on the selected command
-   *
-   * @param command - The kind of command to handle
-   * @param cursor - The index of option that the cursor is on, or -1 if no option is selected
-   * @param useMode - The mode to use for the move, if applicable. For switches, a boolean that specifies whether the switch is a Baton switch.
-   * @param move - For {@linkcode Command.FIGHT}, the move to use
-   * @returns Whether the command was successful
-   */
   handleCommand(command: Command.FIGHT | Command.TERA, cursor: number, useMode?: MoveUseMode, move?: TurnMove): boolean;
   handleCommand(command: Command.POKEMON, cursor: number, useBaton: boolean): boolean;
   handleCommand(command: Command.BALL | Command.RUN, cursor: number): boolean;
