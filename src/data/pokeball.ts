@@ -1,8 +1,9 @@
-import type { EnemyPokemon } from "#field/pokemon";
-import type { BattleScene } from "#app/battle-scene";
 import { globalScene } from "#app/global-scene";
 import { PokeballType } from "#enums/pokeball";
+import { NumberHolder } from "#utils/common";
 import i18next from "i18next";
+
+export const MAX_PER_TYPE_POKEBALLS: number = 99;
 
 export function getPokeballAtlasKey(type: PokeballType): string {
   return ["pb", "gb", "ub", "rb", "mb", "lb"][type];
