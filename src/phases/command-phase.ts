@@ -350,17 +350,33 @@ export class CommandPhase extends FieldPhase {
             if (this.fieldIndex) {
               globalScene.currentBattle.turnCommands[this.fieldIndex - 1]!.skip = true;
             }
-            // Defer end() to next tick so the overlay closes cleanly before the phase advances
+            // Defer end() to next tick — by then OptionSelectUiHandler has reverted its overlay
             globalScene.time.delayedCall(0, () => this.end());
             return true;
           },
         }));
         options.push({
           label: i18next.t("menu:cancel"),
-          handler: () => true, // returning true auto-reverts the overlay back to COMMAND
+          handler: () => {
+            // Revert past OPTION_SELECT back to COMMAND so the player can choose again
+            globalScene.ui.revertMode().then(() =>
+              globalScene.ui.setMode(UiMode.COMMAND, this.fieldIndex),
+            );
+            return false; // don't auto-revert (we're handling it manually)
+          },
         });
-        globalScene.ui.setOverlayMode(UiMode.OPTION_SELECT, { options, yOffset: 47 });
-        return false; // end() deferred to selection handler
+
+        // ── Key fix: revert the BALL mode BEFORE opening the target picker ──
+        // The BALL selector is currently the top mode on the UI stack.
+        // If we leave it there and push OPTION_SELECT on top, the BALL mode
+        // remains in the stack when the overlay closes, causing it to reappear
+        // on subsequent waves.  Reverting it first means the stack is clean:
+        //   before: [COMMAND, BALL]  →  after revert: [COMMAND]  →
+        //   after setOverlayMode:    [COMMAND, OPTION_SELECT]
+        globalScene.ui.revertMode().then(() => {
+          globalScene.ui.setOverlayMode(UiMode.OPTION_SELECT, { options, yOffset: 47 });
+        });
+        return false; // end() is deferred to the selection handler
       }
 
       globalScene.currentBattle.turnCommands[this.fieldIndex] = {
