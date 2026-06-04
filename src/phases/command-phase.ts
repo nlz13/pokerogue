@@ -31,6 +31,13 @@ export class CommandPhase extends FieldPhase {
 
   private isSwitch = false;
 
+  /**
+   * nlz v2: flag set while waiting for the player to pick a catch target in a
+   * double battle.  end() checks this and skips advancing the phase until the
+   * selection is made (or cancelled).
+   */
+  private _waitingForDoubleTarget = false;
+
   constructor(fieldIndex: number) {
     super();
     this.fieldIndex = fieldIndex;
@@ -335,7 +342,7 @@ export class CommandPhase extends FieldPhase {
     const numBallTypes = 5;
     if (cursor < numBallTypes) {
       // nlz v2: boss HP threshold restriction removed — all bosses catchable at any HP
-      // nlz v2: double battles show a target picker so the player can choose which to catch
+      // nlz v2: double battles show a target picker
 
       if (targets.length > 1) {
         const enemyField = globalScene.getEnemyField().filter(p => p.isActive(true));
@@ -350,7 +357,8 @@ export class CommandPhase extends FieldPhase {
             if (this.fieldIndex) {
               globalScene.currentBattle.turnCommands[this.fieldIndex - 1]!.skip = true;
             }
-            // Defer end() to next tick — by then OptionSelectUiHandler has reverted its overlay
+            // Clear flag, then advance the phase on the next tick (after overlay closes)
+            this._waitingForDoubleTarget = false;
             globalScene.time.delayedCall(0, () => this.end());
             return true;
           },
@@ -358,25 +366,27 @@ export class CommandPhase extends FieldPhase {
         options.push({
           label: i18next.t("menu:cancel"),
           handler: () => {
-            // Revert past OPTION_SELECT back to COMMAND so the player can choose again
-            globalScene.ui.revertMode().then(() =>
+            // Clear flag and return to command menu on next tick
+            this._waitingForDoubleTarget = false;
+            globalScene.time.delayedCall(0, () =>
               globalScene.ui.setMode(UiMode.COMMAND, this.fieldIndex),
             );
-            return false; // don't auto-revert (we're handling it manually)
+            return true;
           },
         });
 
-        // ── Key fix: revert the BALL mode BEFORE opening the target picker ──
-        // The BALL selector is currently the top mode on the UI stack.
-        // If we leave it there and push OPTION_SELECT on top, the BALL mode
-        // remains in the stack when the overlay closes, causing it to reappear
-        // on subsequent waves.  Reverting it first means the stack is clean:
-        //   before: [COMMAND, BALL]  →  after revert: [COMMAND]  →
-        //   after setOverlayMode:    [COMMAND, OPTION_SELECT]
-        globalScene.ui.revertMode().then(() => {
+        // Set flag so end() doesn't advance the phase when called by handleCommand
+        this._waitingForDoubleTarget = true;
+
+        // Show the picker on the NEXT tick — the ball UI handler will have already run
+        // setMode(COMMAND) + setMode(MESSAGE) by then, cleanly closing itself.
+        // The overlay sits on top of MESSAGE mode so there's nothing left over.
+        globalScene.time.delayedCall(0, () => {
           globalScene.ui.setOverlayMode(UiMode.OPTION_SELECT, { options, yOffset: 47 });
         });
-        return false; // end() is deferred to the selection handler
+
+        // Return true so the ball handler closes itself the normal way
+        return true;
       }
 
       globalScene.currentBattle.turnCommands[this.fieldIndex] = {
@@ -553,6 +563,12 @@ export class CommandPhase extends FieldPhase {
   }
 
   end() {
+    // nlz v2: if we're waiting for the player to pick a catch target in a
+    // double battle, don't advance the phase yet — the selection handler will
+    // clear this flag and call end() again once a target is chosen.
+    if (this._waitingForDoubleTarget) {
+      return;
+    }
     globalScene.ui.setMode(UiMode.MESSAGE).then(() => super.end());
   }
 }
