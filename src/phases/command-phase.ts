@@ -350,19 +350,17 @@ export class CommandPhase extends FieldPhase {
             if (this.fieldIndex) {
               globalScene.currentBattle.turnCommands[this.fieldIndex - 1]!.skip = true;
             }
-            this.end();
+            // Defer end() to next tick so the overlay closes cleanly before the phase advances
+            globalScene.time.delayedCall(0, () => this.end());
             return true;
           },
         }));
         options.push({
           label: i18next.t("menu:cancel"),
-          handler: () => {
-            globalScene.ui.setMode(UiMode.COMMAND, this.fieldIndex);
-            return true;
-          },
+          handler: () => true, // returning true auto-reverts the overlay back to COMMAND
         });
         globalScene.ui.setOverlayMode(UiMode.OPTION_SELECT, { options, yOffset: 47 });
-        return false; // end() will be called from the selection handler above
+        return false; // end() deferred to selection handler
       }
 
       globalScene.currentBattle.turnCommands[this.fieldIndex] = {
