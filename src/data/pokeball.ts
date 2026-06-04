@@ -1,36 +1,18 @@
-import { audioManager } from "#app/global-audio-manager";
+import type { EnemyPokemon } from "#field/pokemon";
+import type { BattleScene } from "#app/battle-scene";
 import { globalScene } from "#app/global-scene";
 import { PokeballType } from "#enums/pokeball";
-import { NumberHolder } from "#utils/common";
 import i18next from "i18next";
 
-export const MAX_PER_TYPE_POKEBALLS: number = 99;
-
 export function getPokeballAtlasKey(type: PokeballType): string {
-  switch (type) {
-    case PokeballType.POKEBALL:
-      return "pb";
-    case PokeballType.GREAT_BALL:
-      return "gb";
-    case PokeballType.ULTRA_BALL:
-      return "ub";
-    case PokeballType.ROGUE_BALL:
-      return "rb";
-    case PokeballType.MASTER_BALL:
-      return "mb";
-    case PokeballType.LUXURY_BALL:
-      return "lb";
-  }
+  return ["pb", "gb", "ub", "rb", "mb", "lb"][type];
 }
 
 export function getPokeballName(type: PokeballType): string {
   let ret: string;
   switch (type) {
-    case PokeballType.POKEBALL:
-      ret = i18next.t("pokeball:pokeBall");
-      break;
-    case PokeballType.GREAT_BALL:
-      ret = i18next.t("pokeball:greatBall");
+    case PokeballType.MASTER_BALL:
+      ret = i18next.t("pokeball:masterBall");
       break;
     case PokeballType.ULTRA_BALL:
       ret = i18next.t("pokeball:ultraBall");
@@ -38,160 +20,105 @@ export function getPokeballName(type: PokeballType): string {
     case PokeballType.ROGUE_BALL:
       ret = i18next.t("pokeball:rogueBall");
       break;
-    case PokeballType.MASTER_BALL:
-      ret = i18next.t("pokeball:masterBall");
+    case PokeballType.GREAT_BALL:
+      ret = i18next.t("pokeball:greatBall");
       break;
     case PokeballType.LUXURY_BALL:
       ret = i18next.t("pokeball:luxuryBall");
+      break;
+    default:
+      ret = i18next.t("pokeball:pokeBall");
       break;
   }
   return ret;
 }
 
 export function getPokeballCatchMultiplier(type: PokeballType): number {
-  // nlz: multipliers boosted ~3x vanilla for offline fun
+  // nlz v2: all balls guaranteed catch (same as Master Ball)
   switch (type) {
     case PokeballType.POKEBALL:
-      return 3;
+      return -1;
     case PokeballType.GREAT_BALL:
-      return 4.5;
+      return -1;
     case PokeballType.ULTRA_BALL:
-      return 7.5;
+      return -1;
     case PokeballType.ROGUE_BALL:
-      return 12;
+      return -1;
     case PokeballType.MASTER_BALL:
-      return -1; // guaranteed -- unchanged
+      return -1;
     case PokeballType.LUXURY_BALL:
-      return 3;
+      return -1;
   }
 }
 
 export function getPokeballTintColor(type: PokeballType): number {
   switch (type) {
-    case PokeballType.POKEBALL:
-      return 0xd52929;
-    case PokeballType.GREAT_BALL:
-      return 0x94b4de;
-    case PokeballType.ULTRA_BALL:
-      return 0xe6cd31;
-    case PokeballType.ROGUE_BALL:
-      return 0xd52929;
     case PokeballType.MASTER_BALL:
-      return 0xa441bd;
+      return 0xb0a0c8;
+    case PokeballType.ULTRA_BALL:
+      return 0xf8d030;
+    case PokeballType.ROGUE_BALL:
+      return 0xd8a0a8;
+    case PokeballType.GREAT_BALL:
+      return 0x80b8f0;
     case PokeballType.LUXURY_BALL:
-      return 0xffde6a;
+      return 0xf8b060;
+    default:
+      return 0xf8f8f8;
   }
 }
 
-/**
- * Gets the critical capture chance based on number of mons registered in Dex and modified {@link https://bulbapedia.bulbagarden.net/wiki/Catch_rate Catch rate}
- * Formula from {@link https://www.dragonflycave.com/mechanics/gen-vi-vii-capturing Dragonfly Cave Gen 6 Capture Mechanics page}
- * @param modifiedCatchRate the modified catch rate as calculated in {@linkcode AttemptCapturePhase}
- * @returns the chance of getting a critical capture, out of 256
- */
 export function getCriticalCaptureChance(modifiedCatchRate: number): number {
-  if (globalScene.gameMode.isFreshStartChallenge()) {
+  if (!globalScene.gameData.unlocks.CRITICAL_CAPTURE_CHANCE) {
     return 0;
   }
   const dexCount = globalScene.gameData.getSpeciesCount(d => !!d.caughtAttr);
-  const catchingCharmMultiplier = new NumberHolder(1);
-  globalScene.findModifier(m => m.is("CriticalCatchChanceBoosterModifier"))?.apply(catchingCharmMultiplier);
-  const dexMultiplier =
-    globalScene.gameMode.isDaily || dexCount > 800
-      ? 2.5
-      : dexCount > 600
-        ? 2
-        : dexCount > 400
-          ? 1.5
-          : dexCount > 200
-            ? 1
-            : dexCount > 100
-              ? 0.5
-              : 0;
-  return Math.floor((catchingCharmMultiplier.value * dexMultiplier * Math.min(255, modifiedCatchRate)) / 6);
+  const baseChance = Math.round(modifiedCatchRate * 2.5);
+  if (dexCount < 30) {
+    return Math.floor(baseChance / 6);
+  }
+  if (dexCount < 150) {
+    return Math.floor(baseChance / 4);
+  }
+  if (dexCount < 300) {
+    return Math.floor(baseChance / 2);
+  }
+  if (dexCount < 450) {
+    return Math.floor((baseChance * 3) / 4);
+  }
+  return baseChance;
 }
 
-// TODO: fix Function annotations
 export function doPokeballBounceAnim(
   pokeball: Phaser.GameObjects.Sprite,
-  y1: number,
-  y2: number,
-  baseBounceDuration: number,
-  callback: () => void,
+  startY: number,
+  endY: number,
+  duration: number,
+  callback: Function,
   isCritical = false,
 ) {
-  let bouncePower = 1;
-  let bounceYOffset = y1;
-  let bounceY = y2;
-  const yd = y2 - y1;
-  const x0 = pokeball.x;
-  const x1 = x0 + 3;
-  const x2 = x0 - 3;
-  let critShakes = 4;
-
-  const doBounce = () => {
-    globalScene.tweens.add({
-      targets: pokeball,
-      y: y2,
-      duration: bouncePower * baseBounceDuration,
-      ease: "Cubic.easeIn",
-      onComplete: () => {
-        audioManager.playSound("se/pb_bounce_1", { volume: bouncePower });
-
-        bouncePower = bouncePower > 0.01 ? bouncePower * 0.5 : 0;
-
-        if (bouncePower) {
-          bounceYOffset = yd * bouncePower;
-          bounceY = y2 - bounceYOffset;
-
-          globalScene.tweens.add({
-            targets: pokeball,
-            y: bounceY,
-            duration: bouncePower * baseBounceDuration,
-            ease: "Cubic.easeOut",
-            onComplete: () => doBounce(),
-          });
-        } else if (callback) {
-          callback();
-        }
-      },
-    });
-  };
-
-  const doCritShake = () => {
-    globalScene.tweens.add({
-      targets: pokeball,
-      x: x2,
-      duration: 125,
-      ease: "Linear",
-      onComplete: () => {
-        globalScene.tweens.add({
-          targets: pokeball,
-          x: x1,
-          duration: 125,
-          ease: "Linear",
-          onComplete: () => {
-            critShakes--;
-            if (critShakes > 0) {
-              doCritShake();
-            } else {
-              globalScene.tweens.add({
-                targets: pokeball,
-                x: x0,
-                duration: 60,
-                ease: "Linear",
-                onComplete: () => globalScene.time.delayedCall(500, doBounce),
-              });
-            }
-          },
-        });
-      },
-    });
-  };
-
-  if (isCritical) {
-    globalScene.time.delayedCall(500, doCritShake);
-  } else {
-    doBounce();
-  }
+  let bouncePeak = 0;
+  const baseY = endY;
+  globalScene.tweens.add({
+    targets: pokeball,
+    y: { value: startY, ease: "Cubic.easeOut" },
+    duration: duration / 2,
+    onComplete: () => {
+      globalScene.tweens.add({
+        targets: pokeball,
+        y: { value: baseY, ease: "Bounce.easeOut" },
+        duration: duration / 2,
+        onUpdate: (tween: Phaser.Tweens.Tween) => {
+          const progress = tween.progress;
+          const y = pokeball.y;
+          if (y < bouncePeak) {
+            bouncePeak = y;
+          } else if (bouncePeak < 0 && y > bouncePeak) {
+            bouncePeak = 0;
+          }
+        },
+        onComplete: () => callback(),
+      });
+    },
+  });
 }
